@@ -1,89 +1,117 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { urlSchema } from '@/lib/validations/url';
-import { generateShortCode, isReservedKeyword } from '@/lib/utils/url';
 import connectDB from '@/lib/db';
 import { Url } from '@/lib/models/url';
+import { generateShortCode, isReservedKeyword } from '@/lib/utils/url';
+import { urlSchema } from '@/lib/validations/url';
+import { rateLimit } from '@/lib/utils/rate-limit';
+import { headers } from 'next/headers';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+
+// Rate limit configuration: 20 requests per minute
+const rateLimitConfig = {
+  intervalInSeconds: 60,
+  maxRequests: 20,
+};
+
+// URL patterns for spam prevention
+const spamPatterns = [
+  /porn/i,
+  /xxx/i,
+  /sex/i,
+  /adult/i,
+  /gambling/i,
+  /casino/i,
+  /phish/i,
+  /malware/i,
+  /virus/i,
+  /hack/i,
+];
 
 export async function POST(req: NextRequest) {
   try {
-    const json = await req.json();
-    const body = urlSchema.parse(json);
-
-    await connectDB();
-
-    // Check if custom alias is provided and not reserved
-    if (body.customAlias) {
-      if (isReservedKeyword(body.customAlias)) {
-        return NextResponse.json(
-          { error: 'This alias is reserved and cannot be used' },
-          { status: 400 }
-        );
-      }
-
-      // Check if custom alias is already taken
-      const existingUrl = await Url.findOne({
-        customAlias: body.customAlias,
-      });
-
-      if (existingUrl) {
-        return NextResponse.json(
-          { error: 'This custom alias is already taken' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Generate a unique short code
-    let shortCode = body.customAlias || generateShortCode();
-    let attempts = 0;
-    const maxAttempts = 5;
-
-    // Keep generating new codes if there's a collision
-    while (attempts < maxAttempts) {
-      try {
-        const url = await Url.create({
-          originalUrl: body.url,
-          shortCode,
-          customAlias: body.customAlias,
-          expiresAt: body.expiresAt,
-          creatorIp: req.headers.get('x-forwarded-for') || 'unknown',
-        });
-
-        const shortUrl = `${APP_URL}/${url.shortCode}`;
-        const analyticsUrl = `${APP_URL}/a/${url.shortCode}`;
-
-        return NextResponse.json({
-          shortUrl,
-          analyticsUrl,
-          message: 'URL shortened successfully',
-        });
-      } catch (error: any) {
-        if (error.code === 11000 && !body.customAlias) {
-          // Only generate a new code if we're not using a custom alias
-          shortCode = generateShortCode();
-          attempts++;
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to generate a unique short code' },
-      { status: 500 }
-    );
-  } catch (error: any) {
-    console.error('Error creating short URL:', error);
-
-    if (error.name === 'ZodError') {
+    // Check rate limit
+    const rateLimitResult = await rateLimit(req, rateLimitConfig);
+    if (!rateLimitResult.success) {
       return NextResponse.json(
-        { error: error.errors[0].message },
+        { error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toISOString(),
+          }
+        }
+      );
+    }
+
+    // Get request data
+    const json = await req.json();
+    const result = urlSchema.safeParse(json);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: 'Invalid request data' },
         { status: 400 }
       );
     }
 
+    const { url, customAlias, expiresAt } = result.data;
+
+    // Check for spam URLs
+    if (spamPatterns.some(pattern => pattern.test(url.toLowerCase()))) {
+      return NextResponse.json(
+        { error: 'This URL has been flagged as potentially harmful or inappropriate.' },
+        { status: 400 }
+      );
+    }
+
+    // Connect to database
+    await connectDB();
+
+    // Check if custom alias is reserved
+    if (customAlias && isReservedKeyword(customAlias)) {
+      return NextResponse.json(
+        { error: 'This alias is reserved' },
+        { status: 400 }
+      );
+    }
+
+    // Check if custom alias is already taken
+    if (customAlias) {
+      const existingUrl = await Url.findOne({ shortCode: customAlias });
+      if (existingUrl) {
+        return NextResponse.json(
+          { error: 'This alias is already taken' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Generate short code
+    const shortCode = customAlias || await generateShortCode();
+
+    // Create URL document
+    const urlDoc = await Url.create({
+      originalUrl: url,
+      shortCode,
+      ...(expiresAt && { expiresAt }),
+      createdBy: req.headers.get('x-forwarded-for')?.split(',')[0] || 'anonymous',
+      userAgent: req.headers.get('user-agent') || 'unknown',
+    });
+
+    // Construct response URLs
+    const shortUrl = `${APP_URL}/${shortCode}`;
+    const analyticsUrl = `${APP_URL}/a/${shortCode}`;
+
+    return NextResponse.json({
+      shortCode,
+      shortUrl,
+      analyticsUrl,
+    });
+  } catch (error) {
+    console.error('Error creating short URL:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
