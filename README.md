@@ -151,17 +151,17 @@ pnpm dev
 
 ## API Endpoints
 
-### POST /api/url
+### POST `/api/url`
 Create a new short URL
 - Body: `{ url: string, customAlias?: string, expiresAt?: string }`
 - Response: `{ shortCode: string, shortUrl: string, analyticsUrl: string }`
 
-### GET /[shortCode]
+### GET `/[shortCode]`
 Redirect to original URL
 - Params: shortCode
 - Response: 301 redirect or 404
 
-### GET /api/analytics/[shortCode]
+### GET `/api/analytics/[shortCode]`
 Get URL analytics
 - Params: shortCode
 - Response: Analytics data with clicks and stats
