@@ -20,10 +20,11 @@ const spamPatterns = [
 ];
 
 // Initialize database connection at module level
-connectDB().catch(console.error);
+let dbPromise = connectDB().catch(console.error);
 
 export async function POST(req: NextRequest) {
   try {
+    await dbPromise; // Ensure database connection is established
     // Check rate limit
     const rateLimitResult = await rateLimit(req, rateLimitConfig);
     if (!rateLimitResult.success) {
