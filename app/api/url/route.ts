@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Error creating short URL:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -128,7 +128,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Check if URL has expired
     if (url.expiresAt && new Date(url.expiresAt) < new Date()) {
       url.status = 'inactive';
       await url.save();
@@ -151,7 +150,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Error fetching URL:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
