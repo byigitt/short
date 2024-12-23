@@ -10,10 +10,10 @@ A modern, full-stack URL shortener built with Next.js 15, MongoDB, and Shadcn UI
 ## Screenshots
 
 ### Homepage
-![Homepage](short.png)
+![Homepage](images/short.png)
 
 ### Analytics Dashboard
-![Analytics Dashboard](analytics.png)
+![Analytics Dashboard](images/analytics.png)
 
 ## Features
 
