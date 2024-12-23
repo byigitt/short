@@ -3,19 +3,26 @@ import connectDB from '@/lib/db';
 import { Url } from '@/lib/models/url';
 import { generateShortCode, isReservedKeyword } from '@/lib/utils/url';
 import { urlSchema } from '@/lib/validations/url';
+import mongoose, { Document } from 'mongoose';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-// Initialize DB connection at startup
+// Connect to database at startup
 connectDB().catch(console.error);
 
-export const runtime = 'edge';
-export const preferredRegion = 'fra1'; // Frankfurt for lower latency in Europe
-export const maxDuration = 10;
+interface UrlDocument extends Document {
+  originalUrl: string;
+  shortCode: string;
+  customAlias?: string;
+  expiresAt?: Date;
+  clickCount: number;
+  createdAt: Date;
+  status: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // Parse request body
+    // Parse request body first to fail fast
     const json = await req.json();
     const result = urlSchema.safeParse(json);
 
@@ -51,7 +58,7 @@ export async function POST(req: NextRequest) {
     const shortCode = customAlias || await generateShortCode();
 
     // Create URL document
-    await Url.create({
+    const urlDoc = await Url.create({
       originalUrl: url,
       shortCode,
       ...(expiresAt && { expiresAt }),
@@ -66,6 +73,13 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
+    if (error instanceof mongoose.Error) {
+      console.error('Database error:', error);
+      return NextResponse.json(
+        { error: 'Database operation failed' },
+        { status: 500 }
+      );
+    }
     console.error('Error creating short URL:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -76,8 +90,6 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    await connectDB();
-
     const { searchParams } = new URL(req.url);
     const shortCode = searchParams.get('code');
 
@@ -91,7 +103,7 @@ export async function GET(req: NextRequest) {
     const url = await Url.findOne({
       $or: [{ shortCode }, { customAlias: shortCode }],
       status: 'active',
-    });
+    }).lean<UrlDocument>();
 
     if (!url) {
       return NextResponse.json(
@@ -101,28 +113,35 @@ export async function GET(req: NextRequest) {
     }
 
     if (url.expiresAt && new Date(url.expiresAt) < new Date()) {
-      url.status = 'inactive';
-      await url.save();
+      await Url.updateOne(
+        { _id: url._id },
+        { $set: { status: 'inactive' } }
+      );
       return NextResponse.json(
         { error: 'URL has expired' },
         { status: 410 }
       );
     }
 
-    const shortUrl = `${APP_URL}/${url.customAlias || url.shortCode}`;
-
     return NextResponse.json({
       originalUrl: url.originalUrl,
       shortCode: url.shortCode,
-      shortUrl,
+      shortUrl: `${APP_URL}/${url.customAlias || url.shortCode}`,
       clickCount: url.clickCount,
       createdAt: url.createdAt,
       expiresAt: url.expiresAt,
     });
   } catch (error) {
+    if (error instanceof mongoose.Error) {
+      console.error('Database error:', error);
+      return NextResponse.json(
+        { error: 'Database operation failed' },
+        { status: 500 }
+      );
+    }
     console.error('Error fetching URL:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
