@@ -25,7 +25,8 @@ import { format } from 'date-fns';
 
 export function UrlShortenerForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const [shortUrl, setShortUrl] = useState<string | null>(null);
+  const [shortUrl, setShortUrl] = useState<string | null>(null); 2
+  const [analyticsUrl, setAnalyticsUrl] = useState<string | null>(null);
   const [date, setDate] = useState<Date>();
 
   const form = useForm<UrlInput>({
@@ -52,12 +53,14 @@ export function UrlShortenerForm() {
       });
 
       const result = await response.json();
+      console.log(result);
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to shorten URL');
       }
 
       setShortUrl(result.shortUrl);
+      setAnalyticsUrl(result.analyticsUrl);
       toast({
         title: 'Success!',
         description: 'Your URL has been shortened.',
@@ -189,7 +192,7 @@ export function UrlShortenerForm() {
             <div className="flex items-center space-x-2">
               <Input
                 readOnly
-                value={`${window.location.origin}/a/${shortUrl.split('/').pop()}`}
+                value={`${analyticsUrl}`}
                 className="bg-muted/50 dark:bg-muted/20 font-medium"
               />
               <Button

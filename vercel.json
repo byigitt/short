@@ -1,0 +1,22 @@
+{
+  "functions": {
+    "app/api/**/*": {
+      "maxDuration": 10,
+      "memory": 1024
+    }
+  },
+  "regions": [
+    "fra1"
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    }
+  ]
+}

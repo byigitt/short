@@ -3,44 +3,19 @@ import connectDB from '@/lib/db';
 import { Url } from '@/lib/models/url';
 import { generateShortCode, isReservedKeyword } from '@/lib/utils/url';
 import { urlSchema } from '@/lib/validations/url';
-import { rateLimit } from '@/lib/utils/rate-limit';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
-// Rate limit configuration: 20 requests per minute
-const rateLimitConfig = {
-  intervalInSeconds: 60,
-  maxRequests: 20,
-};
+// Initialize DB connection at startup
+connectDB().catch(console.error);
 
-// URL patterns for spam prevention
-const spamPatterns = [
-  /porn/i, /xxx/i, /sex/i, /adult/i, /gambling/i,
-  /casino/i, /phish/i, /malware/i, /virus/i, /hack/i,
-];
-
-// Initialize database connection at module level
-let dbPromise = connectDB().catch(console.error);
+export const runtime = 'edge';
+export const preferredRegion = 'fra1'; // Frankfurt for lower latency in Europe
+export const maxDuration = 10;
 
 export async function POST(req: NextRequest) {
   try {
-    await dbPromise; // Ensure database connection is established
-    // Check rate limit
-    const rateLimitResult = await rateLimit(req, rateLimitConfig);
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset.toISOString(),
-          }
-        }
-      );
-    }
-
+    // Parse request body
     const json = await req.json();
     const result = urlSchema.safeParse(json);
 
@@ -53,23 +28,18 @@ export async function POST(req: NextRequest) {
 
     const { url, customAlias, expiresAt } = result.data;
 
-    if (spamPatterns.some(pattern => pattern.test(url.toLowerCase()))) {
-      return NextResponse.json(
-        { error: 'This URL has been flagged as potentially harmful or inappropriate.' },
-        { status: 400 }
-      );
-    }
-
-    if (customAlias && isReservedKeyword(customAlias)) {
-      return NextResponse.json(
-        { error: 'This alias is reserved' },
-        { status: 400 }
-      );
-    }
-
+    // Quick validations
     if (customAlias) {
-      const existingUrl = await Url.findOne({ shortCode: customAlias }).lean();
-      if (existingUrl) {
+      if (isReservedKeyword(customAlias)) {
+        return NextResponse.json(
+          { error: 'This alias is reserved' },
+          { status: 400 }
+        );
+      }
+
+      // Check for existing alias
+      const exists = await Url.exists({ shortCode: customAlias });
+      if (exists) {
         return NextResponse.json(
           { error: 'This alias is already taken' },
           { status: 400 }
@@ -77,8 +47,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Generate short code
     const shortCode = customAlias || await generateShortCode();
-    const urlDoc = await Url.create({
+
+    // Create URL document
+    await Url.create({
       originalUrl: url,
       shortCode,
       ...(expiresAt && { expiresAt }),
@@ -86,18 +59,16 @@ export async function POST(req: NextRequest) {
       userAgent: req.headers.get('user-agent') || 'unknown',
     });
 
-    const shortUrl = `${APP_URL}/${shortCode}`;
-    const analyticsUrl = `${APP_URL}/a/${shortCode}`;
-
     return NextResponse.json({
       shortCode,
-      shortUrl,
-      analyticsUrl,
+      shortUrl: `${APP_URL}/${shortCode}`,
+      analyticsUrl: `${APP_URL}/a/${shortCode}`,
     });
+
   } catch (error) {
     console.error('Error creating short URL:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
