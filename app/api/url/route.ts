@@ -7,9 +7,6 @@ import mongoose, { Document } from 'mongoose';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-// Connect to database at startup
-connectDB().catch(console.error);
-
 interface UrlDocument extends Document {
   originalUrl: string;
   shortCode: string;
@@ -22,6 +19,9 @@ interface UrlDocument extends Document {
 
 export async function POST(req: NextRequest) {
   try {
+    // Ensure database connection is established
+    await connectDB();
+
     // Parse request body first to fail fast
     const json = await req.json();
     const result = urlSchema.safeParse(json);
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof mongoose.Error) {
       console.error('Database error:', error);
       return NextResponse.json(
-        { error: 'Database operation failed' },
+        { error: 'Database operation failed', details: error.message },
         { status: 500 }
       );
     }
@@ -90,6 +90,9 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    // Ensure database connection is established
+    await connectDB();
+
     const { searchParams } = new URL(req.url);
     const shortCode = searchParams.get('code');
 
@@ -135,7 +138,7 @@ export async function GET(req: NextRequest) {
     if (error instanceof mongoose.Error) {
       console.error('Database error:', error);
       return NextResponse.json(
-        { error: 'Database operation failed' },
+        { error: 'Database operation failed', details: error.message },
         { status: 500 }
       );
     }
