@@ -4,7 +4,6 @@ import { Url } from '@/lib/models/url';
 import { generateShortCode, isReservedKeyword } from '@/lib/utils/url';
 import { urlSchema } from '@/lib/validations/url';
 import { rateLimit } from '@/lib/utils/rate-limit';
-import { headers } from 'next/headers';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
@@ -16,17 +15,12 @@ const rateLimitConfig = {
 
 // URL patterns for spam prevention
 const spamPatterns = [
-  /porn/i,
-  /xxx/i,
-  /sex/i,
-  /adult/i,
-  /gambling/i,
-  /casino/i,
-  /phish/i,
-  /malware/i,
-  /virus/i,
-  /hack/i,
+  /porn/i, /xxx/i, /sex/i, /adult/i, /gambling/i,
+  /casino/i, /phish/i, /malware/i, /virus/i, /hack/i,
 ];
+
+// Initialize database connection at module level
+connectDB().catch(console.error);
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,7 +40,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get request data
     const json = await req.json();
     const result = urlSchema.safeParse(json);
 
@@ -59,7 +52,6 @@ export async function POST(req: NextRequest) {
 
     const { url, customAlias, expiresAt } = result.data;
 
-    // Check for spam URLs
     if (spamPatterns.some(pattern => pattern.test(url.toLowerCase()))) {
       return NextResponse.json(
         { error: 'This URL has been flagged as potentially harmful or inappropriate.' },
@@ -67,10 +59,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Connect to database
-    await connectDB();
-
-    // Check if custom alias is reserved
     if (customAlias && isReservedKeyword(customAlias)) {
       return NextResponse.json(
         { error: 'This alias is reserved' },
@@ -78,9 +66,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if custom alias is already taken
     if (customAlias) {
-      const existingUrl = await Url.findOne({ shortCode: customAlias });
+      const existingUrl = await Url.findOne({ shortCode: customAlias }).lean();
       if (existingUrl) {
         return NextResponse.json(
           { error: 'This alias is already taken' },
@@ -89,10 +76,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate short code
     const shortCode = customAlias || await generateShortCode();
-
-    // Create URL document
     const urlDoc = await Url.create({
       originalUrl: url,
       shortCode,
@@ -101,7 +85,6 @@ export async function POST(req: NextRequest) {
       userAgent: req.headers.get('user-agent') || 'unknown',
     });
 
-    // Construct response URLs
     const shortUrl = `${APP_URL}/${shortCode}`;
     const analyticsUrl = `${APP_URL}/a/${shortCode}`;
 
