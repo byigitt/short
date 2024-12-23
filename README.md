@@ -7,6 +7,14 @@ A modern, full-stack URL shortener built with Next.js 15, MongoDB, and Shadcn UI
 ![MongoDB](https://img.shields.io/badge/MongoDB-8.9-green)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC)
 
+## Screenshots
+
+### Homepage
+![Homepage](short.png)
+
+### Analytics Dashboard
+![Analytics Dashboard](analytics.png)
+
 ## Features
 
 - 🚀 Modern, responsive UI with dark mode support
@@ -60,40 +68,40 @@ A modern, full-stack URL shortener built with Next.js 15, MongoDB, and Shadcn UI
 ### Installation
 
 1. Clone the repository:
-\`\`\`bash
-git clone https://github.com/yourusername/url-shortener.git
-cd url-shortener
-\`\`\`
+```bash
+git clone https://github.com/byigitt/short.git
+cd short
+```
 
 2. Install dependencies:
-\`\`\`bash
+```bash
 npm install
 # or
 yarn install
 # or
 pnpm install
-\`\`\`
+```
 
-3. Create a \`.env.local\` file in the root directory:
-\`\`\`env
+3. Create a `.env.local` file in the root directory:
+```env
 MONGODB_URI=your_mongodb_connection_string
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-\`\`\`
+```
 
 4. Run the development server:
-\`\`\`bash
+```bash
 npm run dev
 # or
 yarn dev
 # or
 pnpm dev
-\`\`\`
+```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Project Structure
 
-\`\`\`
+```
 ├── app/                    # Next.js App Router
 │   ├── api/               # API routes
 │   ├── [shortCode]/      # URL redirection
@@ -109,7 +117,7 @@ pnpm dev
 │   ├── validations/    # Zod schemas
 │   └── utils/          # Utility functions
 └── public/             # Static files
-\`\`\`
+```
 
 ## Features in Detail
 
@@ -145,8 +153,8 @@ pnpm dev
 
 ### POST /api/url
 Create a new short URL
-- Body: \`{ url: string, customAlias?: string, expiresAt?: string }\`
-- Response: \`{ shortCode: string, shortUrl: string, analyticsUrl: string }\`
+- Body: `{ url: string, customAlias?: string, expiresAt?: string }`
+- Response: `{ shortCode: string, shortUrl: string, analyticsUrl: string }`
 
 ### GET /[shortCode]
 Redirect to original URL
@@ -161,9 +169,9 @@ Get URL analytics
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch: \`git checkout -b feature/amazing-feature\`
-3. Commit your changes: \`git commit -m 'Add amazing feature'\`
-4. Push to the branch: \`git push origin feature/amazing-feature\`
+2. Create your feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
 ## License
